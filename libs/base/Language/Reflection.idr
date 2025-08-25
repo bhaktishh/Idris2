@@ -64,6 +64,9 @@ data Elab : Type -> Type where
 
      -- Elaborate a TTImp term to a concrete value
      Check : TTImp -> Elab expected
+
+    --  given a type constructor, get the pairs of data constructors that can have the same type. 
+     GetCompPairs : a -> Elab (List (String, String))
      -- Quote a concrete expression back to a TTImp
      Quote : (0 _ : val) -> Elab TTImp
 
@@ -158,6 +161,9 @@ interface Monad m => Elaboration m where
   ||| Returns the type checked value
   check : TTImp -> m expected
 
+  ||| Given a value, assumed to be a type constructor, returns as strings the pairs of data constructors that could potentially have the same type 
+  ||| Util for automated derivation of decidable equality
+  getCompPairs : a -> m (List (String, String))
   ||| Return TTImp syntax of a given value
   quote : (0 _ : val) -> m TTImp
 
@@ -240,6 +246,7 @@ Elaboration Elab where
   logSugaredTerm = LogSugaredTerm
   resugarTerm    = ResugarTerm
   check          = Check
+  getCompPairs   = GetCompPairs
   quote          = Quote
   lambda         = Lambda
   goal           = Goal
@@ -268,6 +275,7 @@ Elaboration m => MonadTrans t => Monad (t m) => Elaboration (t m) where
   logSugaredTerm s n  = lift .: logSugaredTerm s n
   resugarTerm         = lift .: resugarTerm
   check               = lift . check
+  getCompPairs        = lift . getCompPairs
   quote v             = lift $ quote v
   lambda x            = lift . lambda x
   goal                = lift goal
