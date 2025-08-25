@@ -3,6 +3,7 @@ module Core.Core
 import Core.Context.Context
 import Core.Env
 import Core.TT
+import public Core.WithData
 
 import Data.List1
 import Data.SnocList
@@ -13,9 +14,13 @@ import Libraries.Text.PrettyPrint.Prettyprinter
 import Libraries.Text.PrettyPrint.Prettyprinter.Util
 import Libraries.Text.PrettyPrint.Prettyprinter.Doc
 import Libraries.Data.Tap
+import Libraries.Data.WithData
 
 import public Data.IORef
 import System.File
+
+%hide Libraries.Data.Record.KeyVal.label
+%hide Libraries.Data.Record.LabelledValue.label
 
 %default covering
 
@@ -66,7 +71,7 @@ data Warning : Type where
      ParserWarning : FC -> String -> Warning
      UnreachableClause : {vars : _} ->
                          FC -> Env Term vars -> Term vars -> Warning
-     ShadowingGlobalDefs : FC -> List1 (String, List1 Name) -> Warning
+     ShadowingGlobalDefs : FC -> List1 (Name, List1 Name) -> Warning
      ||| Soft-breaking change, make an error later.
      ||| @ original Originally declared visibility on forward decl
      ||| @ new      Incompatible new visibility on actual declaration.
@@ -493,13 +498,13 @@ getErrorLoc (BadMultiline loc _) = Just loc
 getErrorLoc (Timeout _) = Nothing
 getErrorLoc (InType _ _ err) = getErrorLoc err
 getErrorLoc (InCon _ err) = getErrorLoc err
-getErrorLoc (FailingDidNotFail fc) = pure fc
-getErrorLoc (FailingWrongError fc _ _) = pure fc
+getErrorLoc (FailingDidNotFail loc) = Just loc
+getErrorLoc (FailingWrongError loc _ _) = Just loc
 getErrorLoc (InLHS _ _ err) = getErrorLoc err
 getErrorLoc (InRHS _ _ err) = getErrorLoc err
 getErrorLoc (MaybeMisspelling err _) = getErrorLoc err
 getErrorLoc (WarningAsError warn) = Just (getWarningLoc warn)
-getErrorLoc (OperatorBindingMismatch fc _ _ _ _ _) = Just fc
+getErrorLoc (OperatorBindingMismatch loc _ _ _ _ _) = Just loc
 
 export
 killWarningLoc : Warning -> Warning
@@ -857,9 +862,10 @@ namespace SnocList
   traverse_ : (a -> Core b) -> SnocList a -> Core ()
   traverse_ f xs = traverse_' f (reverse xs)
 
-%inline export
-traverseFC : (a -> Core b) -> WithFC a -> Core (WithFC b)
-traverseFC f (MkFCVal fc x) = MkFCVal fc <$> f x
+namespace WithData
+  %inline export
+  traverse : (ty -> Core sy) -> WithData fs ty -> Core (WithData fs sy)
+  traverse f (MkWithData extra val) = MkWithData extra <$> f val
 
 namespace PiInfo
   export
@@ -868,6 +874,11 @@ namespace PiInfo
   traverse f Implicit = pure Implicit
   traverse f AutoImplicit = pure AutoImplicit
   traverse f (DefImplicit t) = pure (DefImplicit !(f t))
+
+namespace PiBindData
+  export
+  traverse : (a -> Core b) -> PiBindData a -> Core (PiBindData b)
+  traverse f (MkPiBindData info boundType) = MkPiBindData <$> traverse f info <*> f boundType
 
 namespace Binder
   export
@@ -885,8 +896,8 @@ mapTermM : ({vars : _} -> Term vars -> Core (Term vars)) ->
 mapTermM f = goTerm where
 
     goTerm : {vars : _} -> Term vars -> Core (Term vars)
-    goTerm tm@(Local _ _ _ _) = f tm
-    goTerm tm@(Ref _ _ _) = f tm
+    goTerm tm@(Local {}) = f tm
+    goTerm tm@(Ref {}) = f tm
     goTerm (Meta fc n i args) = f =<< Meta fc n i <$> traverse goTerm args
     goTerm (Bind fc x bd sc) = f =<< Bind fc x <$> traverse goTerm bd <*> goTerm sc
     goTerm (App fc fn arg) = f =<< App fc <$> goTerm fn <*> goTerm arg
@@ -894,9 +905,9 @@ mapTermM f = goTerm where
     goTerm (TDelayed fc la d) = f =<< TDelayed fc la <$> goTerm d
     goTerm (TDelay fc la ty arg) = f =<< TDelay fc la <$> goTerm ty <*> goTerm arg
     goTerm (TForce fc la t) = f =<< TForce fc la <$> goTerm t
-    goTerm tm@(PrimVal _ _) = f tm
-    goTerm tm@(Erased _ _) = f tm
-    goTerm tm@(TType _ _) = f tm
+    goTerm tm@(PrimVal {}) = f tm
+    goTerm tm@(Erased {}) = f tm
+    goTerm tm@(TType {}) = f tm
 
 
 export

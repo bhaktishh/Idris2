@@ -186,11 +186,6 @@ val :+ x = MkWithData (add lbl val x.metadata) x.val
 
 export infixr 8 :++
 
-||| Add a record to the metadata
-export
-(:++) : Record ls -> WithData xs a -> WithData (ls ++ xs) a
-(:++) rec x = MkWithData (rec ++ x.metadata) x.val
-
 ||| Drop the head element of the metadata
 export
 drop : WithData (l :: ls) a -> WithData ls a
@@ -201,11 +196,10 @@ export
 (.drop) : WithData (l :: ls) a -> WithData ls a
 (.drop) = {metadata $= Record.tail }
 
-
 ||| WithData is functiorial in its payload
 export
-mapData : forall metadata. (a -> b) -> WithData metadata a -> WithData metadata b
-mapData f x = MkWithData x.metadata (f x.val)
+Functor (WithData md) where
+  map f x = MkWithData x.metadata (f x.val)
 
 ------------------------------------------------------------------------------------------------
 -- Default fields for records
@@ -235,12 +229,6 @@ export
 AddDef :  (def : HasDefault ty) =>
          WithData fl a -> WithData (lbl :-: ty :: fl) a
 AddDef x = (defValue @{def}) :+ x
-
-||| Add a record of default values to an existing metadata record
-export
-AddDefs : {fs : _} -> (values : All (HasDefault . KeyVal.type) fs) =>
-         WithData fl a -> WithData (fs ++ fl) a
-AddDefs x = fromDefault values :++ x
 
 ------------------------------------------------------------------------------------------------
 -- WithData distributes with List and Maybe
