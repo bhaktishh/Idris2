@@ -247,9 +247,9 @@ elabScript rig fc nest env script@(NDCon nfc nm t ar args) exp
     elabCon defs "GetCompPairs" [_, x1]
         = do 
         -- we want to be sure a type constructor was passed in
-            NTCon _ n _ _ cs_ <- evalClosure defs x1
+            NTCon _ n _ _ <- evalClosure defs x1
               | _ => failWith defs "not a type constructor"
-            Just (TCon _ _ _ _ _ _ cons _) <- lookupDefExact n (gamma defs)
+            Just (TCon _ _ _ _ _ cons _) <- lookupDefExact n (gamma defs)
               | _ => failWith defs "not a type constructor"
             gdefs' <- traverse (\con => lookupCtxtExact con (gamma defs)) (fromMaybe [] cons)
             let gdefs : List GlobalDef = catMaybes gdefs'
